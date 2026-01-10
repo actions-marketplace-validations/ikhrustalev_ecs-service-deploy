@@ -1,5 +1,9 @@
 # ECS Service Deploy
 
+[![Test](https://github.com/ikhrustalev/ecs-service-deploy/actions/workflows/test_action.yml/badge.svg)](https://github.com/ikhrustalev/ecs-service-deploy/actions/workflows/test_action.yml)
+[![Release](https://img.shields.io/github/v/release/ikhrustalev/ecs-service-deploy)](https://github.com/ikhrustalev/ecs-service-deploy/releases)
+[![License](https://img.shields.io/github/license/ikhrustalev/ecs-service-deploy)](LICENSE)
+
 A lightweight GitHub Action for redeploying ECS services without the ceremony of full task definition management.
 
 ## When to Use This
