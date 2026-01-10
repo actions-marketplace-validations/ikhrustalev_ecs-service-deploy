@@ -1,0 +1,138 @@
+name: "ECS Service Deploy"
+description: "Deploy a ECS service, optionally wait for the service to be stable"
+author: Ilya Khrustalev <ilya.khrustalev@gmail.com>
+
+branding:
+  icon: "upload-cloud"
+  color: "orange"
+
+inputs:
+  cluster_arn:
+    description: "ARN of the ECS cluster"
+    required: true
+  service_name:
+    description: "Name of the ECS service"
+    required: true
+  wait:
+    description: "Wait for service to be stable"
+    required: false
+    default: "true"
+  force_new_deployment:
+    description: "Force a new deployment"
+    required: false
+    default: "true"
+  region:
+    description: "AWS region"
+    required: false
+  desired_count:
+    description: "Desired count of tasks"
+    required: false
+  task_definition_arn:
+    description: "ARN of the task definition"
+    required: false
+
+outputs:
+  deployment_id:
+    description: "ID of the deployment"
+    value: ${{ steps.update-service.outputs.deployment_id }}
+  task_definition:
+    description: "Task definition ARN used"
+    value: ${{ steps.update-service.outputs.task_definition }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Update ECS service
+      id: update-service
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::group::Update ECS service"
+
+        # Build command arguments dynamically
+        CMD_ARGS=(
+          --cluster "${{ inputs.cluster_arn }}"
+          --service "${{ inputs.service_name }}"
+          --output json
+        )
+        if [ -n "${{ inputs.region }}" ]; then
+          CMD_ARGS+=(--region "${{ inputs.region }}")
+        fi
+        if [ "${{ inputs.force_new_deployment }}" == "true" ]; then
+          CMD_ARGS+=(--force-new-deployment)
+        fi
+        if [ -n "${{ inputs.desired_count }}" ]; then
+          CMD_ARGS+=(--desired-count "${{ inputs.desired_count }}")
+        fi
+        if [ -n "${{ inputs.task_definition_arn }}" ]; then
+          CMD_ARGS+=(--task-definition "${{ inputs.task_definition_arn }}")
+        fi
+
+        UPDATE_OUTPUT=$(aws ecs update-service "${CMD_ARGS[@]}")
+
+        # Extract deployment ID
+        DEPLOYMENT_ID=$(echo "$UPDATE_OUTPUT" | jq -r '.service.deployments[0].id')
+        echo "deployment_id=$DEPLOYMENT_ID" >> $GITHUB_OUTPUT
+
+        # Extract task definition for logging
+        TASK_DEFINITION=$(echo "$UPDATE_OUTPUT" | jq -r '.service.taskDefinition')
+        echo "task_definition=$TASK_DEFINITION" >> $GITHUB_OUTPUT
+
+        echo "Deployment started:"
+        echo "Deployment ID: $DEPLOYMENT_ID"
+        echo "Task Definition: $TASK_DEFINITION"
+        echo "Force New Deployment: ${{ inputs.force_new_deployment }}"
+
+        echo "::endgroup::"
+
+    - name: Wait for service stability and check deployment
+      if: inputs.wait == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        DEPLOYMENT_ID="${{ steps.update-service.outputs.deployment_id }}"
+        REGION_ARG=""
+        if [ -n "${{ inputs.region }}" ]; then
+          REGION_ARG="--region ${{ inputs.region }}"
+        fi
+
+        echo "::group::Wait for service to be stable"
+        echo "Waiting for service to stabilize..."
+
+        # Wait for service to be stable
+        aws ecs wait services-stable \
+          --cluster "${{ inputs.cluster_arn }}" \
+          --services "${{ inputs.service_name }}" \
+          $REGION_ARG
+
+        echo "Service is stable"
+        echo "::endgroup::"
+
+        # Check final deployment state
+        echo "::group::Check final deployment state"
+
+        DEPLOYMENT_OUTPUT=$(aws ecs describe-services \
+          --cluster "${{ inputs.cluster_arn }}" \
+          --services "${{ inputs.service_name }}" \
+          --query "services[0].deployments[?id=='${DEPLOYMENT_ID}'] | [0]" \
+          --output json)
+
+        FINAL_STATE=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.rolloutState')
+        FINAL_STATE_REASON=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.rolloutStateReason // "No reason provided"')
+        RUNNING_COUNT=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.runningCount // 0')
+        DESIRED_COUNT=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.desiredCount // 0')
+
+        echo "Deployment Status:"
+        echo "Rollout State: $FINAL_STATE"
+        echo "Rollout State Reason: $FINAL_STATE_REASON"
+        echo "Running Tasks: $RUNNING_COUNT / $DESIRED_COUNT"
+
+        if [ "$FINAL_STATE" == "FAILED" ]; then
+          echo "::error::Deployment $DEPLOYMENT_ID failed: $FINAL_STATE_REASON"
+          exit 1
+        elif [ "$FINAL_STATE" == "COMPLETED" ]; then
+          echo "::notice::Deployment $DEPLOYMENT_ID completed successfully"
+        fi
+
+        echo "::endgroup::"
