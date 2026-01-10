@@ -57,7 +57,7 @@ The most common use case — your task definition points to `:latest` and you wa
 
 ```yaml
 - name: Redeploy to pull latest image
-  uses: rznzippy/ecs-redeploy-service@v1
+  uses: ikhrustalev/ecs-redeploy-service@v1
   with:
     cluster_arn: arn:aws:ecs:us-east-1:123456789012:cluster/dev-cluster
     service_name: api-service
@@ -69,7 +69,7 @@ Deploy a specific task definition (useful for rollbacks):
 
 ```yaml
 - name: Rollback to previous version
-  uses: rznzippy/ecs-redeploy-service@v1
+  uses: ikhrustalev/ecs-redeploy-service@v1
   with:
     cluster_arn: arn:aws:ecs:us-east-1:123456789012:cluster/prod-cluster
     service_name: api-service
@@ -82,7 +82,7 @@ Adjust desired count while redeploying:
 
 ```yaml
 - name: Scale up and redeploy
-  uses: rznzippy/ecs-redeploy-service@v1
+  uses: ikhrustalev/ecs-redeploy-service@v1
   with:
     cluster_arn: arn:aws:ecs:us-east-1:123456789012:cluster/prod-cluster
     service_name: api-service
@@ -95,7 +95,7 @@ Skip waiting for stability — useful in non-critical environments or when you h
 
 ```yaml
 - name: Trigger redeploy without waiting
-  uses: rznzippy/ecs-redeploy-service@v1
+  uses: ikhrustalev/ecs-redeploy-service@v1
   with:
     cluster_arn: arn:aws:ecs:us-east-1:123456789012:cluster/dev-cluster
     service_name: api-service
@@ -108,7 +108,7 @@ Deploy to a specific region:
 
 ```yaml
 - name: Deploy to EU region
-  uses: rznzippy/ecs-redeploy-service@v1
+  uses: ikhrustalev/ecs-redeploy-service@v1
   with:
     cluster_arn: arn:aws:ecs:eu-west-1:123456789012:cluster/eu-cluster
     service_name: api-service
@@ -145,7 +145,7 @@ jobs:
           docker push my-repo:latest
 
       - name: Redeploy ECS service
-        uses: rznzippy/ecs-redeploy-service@v1
+        uses: ikhrustalev/ecs-redeploy-service@v1
         with:
           cluster_arn: arn:aws:ecs:us-east-1:123456789012:cluster/staging
           service_name: api-service
